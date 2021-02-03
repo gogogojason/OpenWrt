@@ -56,3 +56,7 @@ sed -i 's/$(VERSION) &&/$(VERSION) ;/g' include/download.mk
 date=`date +%m.%d.%Y`
 sed -i "s/# REVISION:=x/REVISION:= $date/g" include/version.mk
 sed -i '$a cgi-timeout = 300' package/feeds/packages/uwsgi/files-luci-support/luci-webui.ini
+rm -Rf feeds/custom/AdGuardHome
+rm -Rf feeds/custom/luci-app-adguardhome
+svn co https://github.com/kenzok8/openwrt-packages/trunk/AdGuardHome feeds/custom/AdGuardHome
+svn co https://github.com/kenzok8/openwrt-packages/trunk/luci-app-adguardhome feeds/custom/luci-app-adguardhome
