@@ -1,10 +1,4 @@
-rm -Rf feeds/custom/AdGuardHome
-rm -Rf feeds/custom/luci-app-adguardhome
-svn co https://github.com/kenzok8/openwrt-packages/trunk/AdGuardHome feeds/custom/AdGuardHome
-svn co https://github.com/kenzok8/openwrt-packages/trunk/luci-app-adguardhome feeds/custom/luci-app-adguardhome
-./scripts/feeds update luci packages custom
-./scripts/feeds install -a
-#===============================================================================================================
+
 date1=`date +%Y.%m.%d`
 sed -i "s/DISTRIB_DESCRIPTION.*/DISTRIB_DESCRIPTION='hfy166 Ver.D$date1'/g" package/base-files/files/etc/openwrt_release
 sed -i "s/192.168.1.1/192.168.2.1/g" package/base-files/files/bin/config_generate
