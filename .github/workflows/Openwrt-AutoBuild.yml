@@ -54,6 +54,7 @@ jobs:
         echo "REPO_BRANCH=${REPO_BRANCH}" >> $GITHUB_ENV
         echo "CONFIG_FILE=${CONFIG_FILE}" >> $GITHUB_ENV
         echo "DIY_SH=${DIY_SH}" >> $GITHUB_ENV
+        echo "DIY_SH2=${DIY_SH2}" >> $GITHUB_ENV
         echo "FREE_UP_DISK=${FREE_UP_DISK}" >> $GITHUB_ENV
         echo "UPLOAD_BIN_DIR_FOR_ARTIFACT=${UPLOAD_BIN_DIR_FOR_ARTIFACT}" >> $GITHUB_ENV
         echo "WXFB_MESSAGE=${WXFB_MESSAGE}" >> $GITHUB_ENV
@@ -124,12 +125,15 @@ jobs:
         cp -rf devices openwrt/
         cd openwrt
         chmod +x devices/common/$DIY_SH
+        chmod +x devices/common/$DIY_SH2
         /bin/bash "devices/common/$DIY_SH"
+        /bin/bash "devices/common/$DIY_SH2"
         cp -Rf ./diy/* ./
         if [ -f "devices/${{matrix.target}}/$DIY_SH" ]; then
           chmod +x devices/${{matrix.target}}/$DIY_SH
           /bin/bash "devices/${{matrix.target}}/$DIY_SH"
         fi
+        
         cp -f devices/common/default-settings package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
         if [ -f "devices/${{matrix.target}}/default-settings" ]; then
           echo >> package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
