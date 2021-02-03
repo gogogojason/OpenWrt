@@ -2,6 +2,7 @@ rm -Rf feeds/custom/AdGuardHome
 rm -Rf feeds/custom/luci-app-adguardhome
 svn co https://github.com/kenzok8/openwrt-packages/trunk/AdGuardHome feeds/custom/AdGuardHome
 svn co https://github.com/kenzok8/openwrt-packages/trunk/luci-app-adguardhome feeds/custom/luci-app-adguardhome
+./scripts/feeds update luci packages custom
 ./scripts/feeds install -a
 #===============================================================================================================
 date1=`date +%Y.%m.%d`
