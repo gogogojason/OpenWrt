@@ -1,6 +1,10 @@
 #!/bin/bash
 #=================================================
 rm -Rf feeds/custom/diy
+svn co https://github.com/kenzok8/openwrt-packages/trunk/luci-app-adguardhome feeds/custom/luci-app-adguardhome
+svn co https://github.com/kenzok8/openwrt-packages/trunk/AdGuardHome feeds/custom/AdGuardHome
+rm -Rf feeds/custom/luci-app-adguardhome
+rm -Rf feeds/custom/AdGuardHome
 mv -f feeds/packages/libs/libx264 feeds/custom/libx264
 mv -f feeds/packages/net/openvpn feeds/custom/openvpn
 mv -f feeds/packages/admin/netdata feeds/custom/netdata
