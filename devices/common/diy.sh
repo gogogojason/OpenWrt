@@ -5,8 +5,7 @@ rm -Rf feeds/custom/luci-app-adguardhome
 rm -Rf feeds/custom/AdGuardHome
 svn co https://github.com/kenzok8/openwrt-packages/trunk/luci-app-adguardhome feeds/custom/luci-app-adguardhome
 svn co https://github.com/kenzok8/openwrt-packages/trunk/AdGuardHome feeds/custom/AdGuardHome
-mv -f feeds/packages/net/shadowsocks-libev feeds/custom/shadowsocks-libev
-rm -Rf feeds/packages/net/{smartdns,mwan3,miniupnpd,aria2} feeds/luci/applications/{luci-app-dockerman,luci-app-smartdns,luci-app-frpc}
+rm -Rf feeds/packages/net/{smartdns,mwan3,miniupnpd,aria2,https-dns-proxy,shadowsocks-libev} feeds/luci/applications/{luci-app-dockerman,luci-app-smartdns,luci-app-frpc}
 ./scripts/feeds update luci packages custom
 ./scripts/feeds install -a
 sed -i 's/Os/O2/g' include/target.mk
@@ -41,7 +40,7 @@ sed -i 's?+pdnsd-alt??' package/feeds/custom/luci-app-turboacc/Makefile
 sed -i 's/PKG_BUILD_DIR:=/PKG_BUILD_DIR?=/g' feeds/luci/luci.mk
 sed -i '/killall -HUP/d' feeds/luci/luci.mk
 find package target -name inittab | xargs -i sed -i "s/askfirst/respawn/g" {}
-for ipk in $(find package/feeds/*/* -maxdepth 0); do	
+for ipk in $(find package/feeds/custom/* -maxdepth 0); do	
 	if [[ ! -d "$ipk/patches" && ! "$(grep "codeload.github.com" $ipk/Makefile)" ]]; then
 		find $ipk/ -maxdepth 1 -name "Makefile" \
 		| xargs -i sed -i "s/PKG_SOURCE_VERSION:=[0-9a-z]\{15,\}/PKG_SOURCE_VERSION:=HEAD/g" {}
@@ -51,3 +50,15 @@ sed -i 's/$(VERSION) &&/$(VERSION) ;/g' include/download.mk
 date=`date +%m.%d.%Y`
 sed -i "s/# REVISION:=x/REVISION:= $date/g" include/version.mk
 sed -i '$a cgi-timeout = 300' package/feeds/packages/uwsgi/files-luci-support/luci-webui.ini
+
+if [ -f sdk.tar.xz ]; then
+	sed -i 's,$(STAGING_DIR_HOST)/bin/upx,upx,' package/feeds/custom/*/Makefile
+	mkdir sdk
+	tar -xJf sdk.tar.xz -C sdk
+	cp -rf sdk/*/build_dir ./
+	cp -rf sdk/*/staging_dir/* ./staging_dir/
+	rm -rf sdk.tar.xz sdk
+	sed -i '/\(tools\|toolchain\)\/Makefile/d' Makefile
+	ln -sf /usr/bin/python staging_dir/host/bin/python
+	ln -sf /usr/bin/python staging_dir/host/bin/python3
+fi
