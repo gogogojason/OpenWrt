@@ -5,7 +5,7 @@ rm -Rf feeds/custom/luci-app-adguardhome
 rm -Rf feeds/custom/AdGuardHome
 svn co https://github.com/kenzok8/openwrt-packages/trunk/luci-app-adguardhome feeds/custom/luci-app-adguardhome
 svn co https://github.com/kenzok8/openwrt-packages/trunk/AdGuardHome feeds/custom/AdGuardHome
-rm -Rf feeds/packages/net/{smartdns,mwan3,miniupnpd,aria2,https-dns-proxy,shadowsocks-libev,frp,openvpn} feeds/luci/applications/luci-app-{dockerman,smartdns,frpc,frps}
+rm -Rf feeds/packages/net/{smartdns,mwan3,miniupnpd,aria2,https-dns-proxy,shadowsocks-libev,frp,openvpn} feeds/luci/applications/luci-app-{dockerman,smartdns,frpc,frps,https-dns-proxy}
 rm -Rf feeds/packages/utils/cgroupfs-mount
 ./scripts/feeds update luci packages custom
 ./scripts/feeds install -a
@@ -16,7 +16,6 @@ sed -i 's?zstd$?zstd ucl upx\n$(curdir)/upx/compile := $(curdir)/ucl/compile?g' 
 echo -e "\q" | svn co https://github.com/immortalwrt/immortalwrt/branches/openwrt-21.02/target/linux/generic/hack-5.4 target/linux/generic/hack-5.4
 wget -O target/linux/generic/pending-5.4/601-add-kernel-imq-support.patch https://raw.githubusercontent.com/immortalwrt/immortalwrt/openwrt-21.02/target/linux/generic/pending-5.4/601-add-kernel-imq-support.patch
 sed -i "s/'class': 'table'/'class': 'table memory'/g" package/*/*/luci-mod-status/htdocs/luci-static/resources/view/status/include/20_memory.js
-rm -f target/linux/generic/pending-5.4/770-11-net*
 sed -i 's/+acme\( \|$\)/+acme +acme-dnsapi\1/g' package/*/*/luci-app-acme/Makefile
 sed -i '$a /etc/sysupgrade.conf' package/base-files/files/lib/upgrade/keep.d/base-files-essential
 sed -i '$a /etc/amule' package/base-files/files/lib/upgrade/keep.d/base-files-essential
@@ -37,6 +36,7 @@ wget -O package/network/config/firewall/patches/fullconenat.patch https://github
 sed -i "s/+nginx\( \|$\)/+nginx-ssl\1/g"  package/*/*/*/Makefile
 sed -i 's/+python\( \|$\)/+python3/g' package/*/*/*/Makefile
 sed -i 's?../../lang?$(TOPDIR)/feeds/packages/lang?g' package/feeds/custom/*/Makefile
+sed -i 's?\.\./\.\.?$(TOPDIR)/feeds/packages?g' package/feeds/packages/*/Makefile
 sed -i 's?package.mk?package.mk\ninclude $(INCLUDE_DIR)/package_lang.mk?g' package/*/custom/luci-app-*/Makefile
 sed -i 's?+pdnsd-alt??' package/feeds/custom/luci-app-turboacc/Makefile
 sed -i 's/PKG_BUILD_DIR:=/PKG_BUILD_DIR?=/g' feeds/luci/luci.mk
@@ -60,7 +60,7 @@ if [ -f sdk.tar.xz ]; then
 	cp -rf sdk/*/build_dir ./
 	cp -rf sdk/*/staging_dir/* ./staging_dir/
 	rm -rf sdk.tar.xz sdk
-	sed -i '/\(target\|tools\|toolchain\)\/Makefile/d' Makefile
+	sed -i '/\(tools\|toolchain\)\/Makefile/d' Makefile
 	ln -sf /usr/bin/python staging_dir/host/bin/python
 	ln -sf /usr/bin/python3 staging_dir/host/bin/python3
 fi
