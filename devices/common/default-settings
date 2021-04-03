@@ -70,16 +70,18 @@ if [ ! -f /etc/config/placeholder ]; then
   uci set dhcp.lan.dhcpv6='hybrid'
   uci commit dhcp
 
+  uci set nft-qos.default.limit_enable='0'
+  uci commit nft-qos
 fi
 
 [ -f /usr/bin/wget ] && 	
 	ln -s /usr/bin/wget /usr/bin/wget-ssl
 
 cp -R /www/cgi-bin/* /www/
-find /www -type d -exec chmod 755 {} \;
-chmod +x /www/luci
 chmod 755 /sbin/ethinfo
 chmod 755 /sbin/reboot
+find /www -type d -exec chmod 755 {} \;
+chmod +x /www/luci
 
 sed -i "s/git-.*-\(.*\)/git-\1/g" /usr/lib/lua/luci/version.lua
 
