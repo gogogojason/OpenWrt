@@ -46,8 +46,6 @@ test $version -lt 1 && {
 
 	uci set uhttpd.main.rfc1918_filter=0
 	uci set uhttpd.main.redirect_https=0
-	uci set uhttpd.main.max_connections='200'
-	uci set uhttpd.main.max_requests='100'
 	uci commit uhttpd
 
 	SUBFIX=`echo -n $MACADDR | sed 's/://g' | tr a-z A-Z | tail -c4`
@@ -61,13 +59,13 @@ test $version -lt 1 && {
 	uci commit upnpd
 
 	grep -q S99opkg /etc/crontabs/root ||
-		echo "0 4 * * * sh /etc/rc.d/S99opkg >/tmp/opkgupdate.log 2>&1" >> /etc/crontabs/root
+	echo "0 4 * * * sh /etc/rc.d/S99opkg >/tmp/opkgupdate.log 2>&1" >> /etc/crontabs/root
 	
 	grep -q log-facility /etc/dnsmasq.conf ||
-		echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
+	echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
 
 	grep -q /etc/dnsmasq.d /etc/dnsmasq.conf ||
-		echo "conf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
+	echo "conf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
 
 	uci set turboacc.config.sfe_ipv6='1'
 	uci commit turboacc
@@ -78,10 +76,10 @@ test $version -lt 1 && {
 	sed -i 's/root:.*/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
  
 	uci set network.lan.ipaddr="192.168.2.1"
-chmod 755 /sbin/ethinfo
-chmod 755 /sbin/reboot
 	uci set network.@globals[0].packet_steering=1
 	uci commit network
+chmod 755 /sbin/ethinfo
+chmod 755 /sbin/reboot
   
 	uci set dhcp.@dnsmasq[0].dns_redirect='1'
 	uci set dhcp.dnsmasq[0].allservers='1'
@@ -157,8 +155,5 @@ echo net.bridge.bridge-nf-call-iptables=0 >>$SYSCTL_LOCAL
 echo net.ipv4.fib_multipath_hash_policy=1 >>$SYSCTL_LOCAL
 echo net.ipv4.tcp_congestion_control=cubic >>$SYSCTL_LOCAL
 echo net.netfilter.nf_conntrack_helper=1 >>$SYSCTL_LOCAL
-echo kernel.msgmax = 65536 >>$SYSCTL_LOCAL
-echo kernel.msgmnb = 65536 >>$SYSCTL_LOCAL
-echo vm.swappiness=0 >>$SYSCTL_LOCAL
 
 rm -rf /tmp/luci-*
