@@ -28,17 +28,17 @@ env:
   REPO_TOKEN: ${{ secrets.REPO_TOKEN }}
   SCKEY: ${{ secrets.SCKEY }}
   TZ: Asia/Shanghai
-  GITHUB_RELEASE: https://github.com/gogogojason/OpenWrt-AutoBuild/releases
+  GITHUB_RELEASE: https://github.com/gogogojason/OpenWrt/releases
   
 jobs:
   build:
     runs-on: Ubuntu-20.04
     
-    name: 编译 ${{matrix.target}}
+    name: Build ${{matrix.target}}
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64,All_RM2100,Sim_RM2100,Ap_RM2100,Mi2100]  #[x86_64,All_RM2100,Sim_RM2100,Ap_RM2100,Mi2100，Test]
+        target: ["${{ github.event.client_payload.target }}"]
         
     steps:
     - name: 准备完成
@@ -80,73 +80,55 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler ccache xsltproc rename antlr3 gperf wget curl swig rsync
+        ( sudo -E apt-get -qq update
+        sudo -E apt-get -qq install build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc-s1 libc6-dev-i386 subversion flex uglifyjs gcc-multilib g++-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev xmlto qemu-utils upx-ucl libelf-dev autoconf automake libtool autopoint device-tree-compiler ccache xsltproc rename antlr3 gperf wget curl swig rsync
+        sudo -E apt-get -qq purge azure-cli ghc* zulu* hhvm llvm* firefox powershell openjdk* dotnet* google* mysql* php* android*
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
+        sudo -E apt-get -qq clean ) &
         sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
     
     - name: 更新时区、编译时间
       id: date
       run: |
-        echo "::set-output name=status::success"
-        echo "FILE_DATE=$(date +"%m-%d %H.%M")" >> $GITHUB_ENV
-        echo "FILE_DATE1=$(date "+%Y年%m月%d号-%H点%M分")" >> $GITHUB_ENV
-        echo "FILE_DATE2=$(date "+%Y%m%d-%H%M")" >> $GITHUB_ENV
-        echo "FILE_DATE3=$(date "+%Y%m%d")" >> $GITHUB_ENV
-        echo "FILE_DATE4=$(date "+%m.%d")" >> $GITHUB_ENV
         echo "date=$(date +'%m/%d_%Y_%H/%M')" >> $GITHUB_ENV
         echo "date2=$(date +'%m/%d %Y')" >> $GITHUB_ENV
-        echo "date3=$(date +'%m.%d')" >> $GITHUB_ENV
-        echo "date4=$(date +'%m.%d.%Y')" >> $GITHUB_ENV
+        VERSION="$(echo "${{github.event.action}}" | grep -Eo " [0-9.]+" | sed -e 's/ //')" || true
+        [ "$VERSION" ] && echo "VERSION=$VERSION" >> $GITHUB_ENV || echo "VERSION=$(date +'%m.%d')" >> $GITHUB_ENV
         
     - name: 加载openwrt源
+      working-directory: /workdir
       run: |
-        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
-        cd openwrt
-        if [[ ${{matrix.target}} =~ (All_RM2100|Sim_RM2100|Ap_RM2100|Mi2100) ]]; then
-            wget -cO sdk.tar.xz https://downloads.openwrt.org/snapshots/targets/ramips/mt7621/openwrt-sdk-ramips-mt7621_gcc-8.4.0_musl.Linux-x86_64.tar.xz
-        elif [[ ${{matrix.target}} == "x86_64" ]]; then
-            wget -cO sdk.tar.xz https://downloads.openwrt.org/snapshots/targets/x86/64/openwrt-sdk-x86-64_gcc-8.4.0_musl.Linux-x86_64.tar.xz
+        REPO_BRANCH="$((curl -gs -H 'Content-Type: application/json' \
+           -H "Authorization: Bearer ${{ secrets.REPO_TOKEN }}" \
+           -X POST -d '{ "query": "query {repository(owner: \"openwrt\", name: \"openwrt\") {refs(refPrefix: \"refs/tags/\", last: 4, orderBy: {field: TAG_COMMIT_DATE, direction: ASC}) {edges {node {name}}}}}"}' https://api.github.com/graphql) | jq -r '.data.repository.refs.edges[].node.name' | grep v22 | tail -n 1)"
+        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        if [ "${{ env.REPO_BRANCH }}" ]; then
+          cd openwrt
+          git checkout ${{ env.REPO_BRANCH }}
         fi
-      
-    - name: 释放磁盘空间
-      if: env.FREE_UP_DISK == 'true'
-      env:
-        DEBIAN_FRONTEND: noninteractive
-      run: |
-        sudo mkdir -p -m 777 /mnt/openwrt/dl /mnt/openwrt/staging_dir /mnt/openwrt/build_dir/hostpkg openwrt/build_dir
-        ln -sf /mnt/openwrt/dl openwrt/dl
-        ln -sf /mnt/openwrt/staging_dir openwrt/staging_dir
-        ln -sf /mnt/openwrt/build_dir/hostpkg openwrt/build_dir/hostpkg
-        
-    - name: 应用自定义文件
-      run: |
-        cp -rf devices/common/. openwrt/
-        cp -rf devices/${{matrix.target}}/. openwrt/
-        cd openwrt
-        ./scripts/feeds update -a
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
         
     - name: 加载配置文件
       run: |
+        cp -rf devices/common/. openwrt/
+        cp -rf devices/${{matrix.target}}/. openwrt/
         cp -rf devices openwrt/
         cd openwrt
         chmod +x devices/common/$DIY_SH
-        chmod +x devices/common/$DIY_SH2
         /bin/bash "devices/common/$DIY_SH"
-        /bin/bash "devices/common/$DIY_SH2"
-        cp -Rf ./diy/* ./
         if [ -f "devices/${{matrix.target}}/$DIY_SH" ]; then
           chmod +x devices/${{matrix.target}}/$DIY_SH
           /bin/bash "devices/${{matrix.target}}/$DIY_SH"
         fi
-        
-        cp -f devices/common/default-settings package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
+        cp -Rf ./diy/* ./ || true
         if [ -f "devices/${{matrix.target}}/default-settings" ]; then
-          echo >> package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
-          cat devices/${{matrix.target}}/default-settings >> package/*/*/default-settings/root/etc/uci-defaults/99-default-settings
+          echo >> package/*/*/my-default-settings/files/etc/uci-defaults/99-default-settings
+          cat devices/${{matrix.target}}/default-settings >> package/*/*/my-default-settings/files/etc/uci-defaults/99-default-settings
         fi
-        mv devices/common/$CONFIG_FILE .config
+        cp -f devices/common/$CONFIG_FILE .config
         if [ -f "devices/${{matrix.target}}/$CONFIG_FILE" ]; then
           echo >> .config
           cat devices/${{matrix.target}}/$CONFIG_FILE >> .config
@@ -155,49 +137,54 @@ jobs:
     - name: 打补丁
       run: |
         cd openwrt
-        find "devices/common/patches" -type f ! -path 'devices/common/patches/china_mirrors.patch' -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 -E --forward --no-backup-if-mismatch"
+        find "devices/common/patches" -type f ! -name 'china_mirrors.patch' -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 -E --forward"
         if [ -n "$(ls -A "devices/${{matrix.target}}/patches" 2>/dev/null)" ]; then
-          find "devices/${{matrix.target}}/patches" -type f -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 -E --forward --no-backup-if-mismatch"
-        fi  
+          find "devices/${{matrix.target}}/patches" -type f -name '*.patch' -print0 | sort -z | xargs -I % -t -0 -n 1 sh -c "cat '%'  | patch -d './' -p1 -E --forward"
+        fi
         
         echo "修改地址"
-        sed -i 's/firmware\/redmi-ac2100/firmware\/${{matrix.target}}/g' feeds/custom/luci-app-gpsysupgrade/root/usr/bin/upgrade.lua
-        sed -i 's/firmware\/redmi-ac2100/firmware\/${{matrix.target}}/g' feeds/custom/luci-app-gpsysupgrade/luasrc/model/cbi/gpsysupgrade/sysupgrade.lua
- 
+        sed -i 's/https:\/\/op.supes.top/https:\/\/pan.zstk.tk/g' feeds/custom/luci-app-gpsysupgrade/luasrc/model/cbi/gpsysupgrade/sysupgrade.lua
+
 #    - name: feeds重新更新
 #      run: | 
 #        cd openwrt
 #        ./scripts/feeds update -a
-        
-    - name: SSH远程连接服务器配置固件
-      uses: garypang13/debugger-action@master
-      if: env.SSH_ACTIONS == 'true' || (github.event.inputs.ssh == 'ssh' && github.event.inputs.ssh  != 'false')
-        
-    - name: 检查空间使用情况
-      run: |
-        echo "======================="
-        echo "Space usage:"
-        echo "======================="
-        df -hT
-        echo "======================="
-        du -h --max-depth=1 openwrt/ --exclude=build_dir --exclude=bin
-        du -h --max-depth=1 openwrt/feeds/custom
-    - name: 下载软件包
-      id: package
+
+    - name: Defconfig
       run: |
         cd openwrt
         make defconfig
-        make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+        cat .config
         
-    - name: 开始编译固件
+    - name: SSH connection to Actions
+      uses: kiddin9/debugger-action@master
+      if: contains(github.event.action, 'ssh')
+
+    - name: Download package
+      id: package
+      run: |
+        cd openwrt
+        make download -j$(($(nproc)+1)) &
+        sleep 5
+        
+    - name: Cache
+      uses: klever1988/cachewrtbuild@main
+      with:
+        ccache: 'true'
+        clean: ${{ contains(github.event.action, 'nocache') }}
+        prefix: ${{ github.workspace }}/openwrt
+        
+    - name: Compile the firmware
       id: compile
       run: |
         cd openwrt
         echo -e "$(($(nproc)+1)) thread compile"
-        make -j$(($(nproc)+1)) || make -j1 V=s
-        echo "::set-output name=status::success"
+        make -j$(($(nproc)+1)) || (curl -k --data chat_id="${{ env.TELEGRAM_CHAT_ID }}" --data "text=❌ OpenWrt ${{ env.VERSION }} ${{matrix.target}} 编译失败 😂" "https://api.telegram.org/bot${{ env.TELEGRAM_TOKEN }}/sendMessage" ; make -j1 V=s)
+        sed -i "s/# CONFIG_IB is not set/CONFIG_IB=y/" .config
+        rm -rf staging_dir/toolchain-*/bin/*openwrt-linux-musl-lto-dump
+   
+    - name: Check space usage
+      run: df -hT
       
     - name: 上传bin文件
       uses: actions/upload-artifact@main
@@ -208,64 +195,29 @@ jobs:
 
     - name: 整理固件
       id: organize
+      continue-on-error: true
       run: |
-        mkdir -p ./artifact/package
-        rm -rf $(find openwrt/bin/targets/ -type d -name "packages")
-        cp -rf $(find openwrt/bin/packages/ -type f -name "*.ipk") ./artifact/package/
-        mkdir firmware && find openwrt/bin/targets/*/*/ -maxdepth 1 \
-        -name "*combined*" \
-        -or -name "*sysupgrade*" \
-        -or -name "*armvirt-64-default-rootfs*" \
-        -or -name "sha256sums" \
-        | xargs -i mv -f {} ./firmware/
-        cp openwrt/.config  ./firmware/${{matrix.target}}.config
-        cd firmware
-        echo ${{ env.date4 }} > version.txt
-        mv sha256sums ${{matrix.target}}_sha256sums
-        rename -v "s/^openwrt/${{ env.date3 }}-openwrt/" *
-        rename -v "s/xiaomi_redmi-router/redmi/" *bin
-        rename -v "s/xiaomi_mi-router/redmi/" *bin
-        rename -v "s/-d-team//" *bin
-        rename -v "s/friendlyarm_nanopi-r2s/nanopi-r2s/" *gz
-        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        shopt -s extglob
+        mkdir -p firmware/${{matrix.target}}
+        cp -rf openwrt/bin/targets/*/*/*{combined,sysupgrade}* ./firmware/${{matrix.target}}/ || true
+        cd openwrt/bin/targets/*/*/
+        mv -f profiles.json profiles.json.b
+        cp $GITHUB_WORKSPACE/openwrt/.config ${{matrix.target}}.config || true
+        cp $GITHUB_WORKSPACE/openwrt/build_dir/target-*/linux-*/linux-*/.config ${{matrix.target}}_kernel.config || true
+        mv -f packages ${{ env.KERNEL }}
+        mkdir packages
+        cp -rf ${{ env.KERNEL }}/Packages* packages/
+        cd -
+        rename -v "s/openwrt-/${{ env.VERSION }}-openwrt-/" ./firmware/*/* || true
+        rename -v "s/friendlyarm_//" ./firmware/*/*gz || true
+        rename -v "s/embedfire_//" ./firmware/*/*gz || true
+        rename -v "s/xiaomi_redmi-router/redmi/" ./firmware/*/*bin || true
         Emoji=("🎉" "🤞" "✨" "🎁" "🎈" "🎄" "🎨" "💋" "🍓" "🍕" "🍉" "💐" "🌴" "🚀" "🛸" "🗽" "⛅" "🌈" "🔥" "⛄" "🐶" "🏅" "🦄" "🐤")
-        RANDOM=$$$(date +%s)
-        rand=$[$RANDOM % ${#Emoji[@]}]
-        echo "EMOJI=${Emoji[$rand]}" >> $GITHUB_ENV
-        if [ ${{matrix.target}} == "phicomm-k2p" ]; then
-        echo "NOTICE=刷机时breed里的闪存布局请选择斐讯而非默认的公版" >> $GITHUB_ENV
-        elif [ ${{matrix.target}} == "x86_64" ]; then
-        echo "NOTICE=请分配不少于800M的存储容量" >> $GITHUB_ENV
+        echo "EMOJI=${Emoji[$[$RANDOM % ${#Emoji[@]}]]}" >> $GITHUB_ENV
+        if [ ${{matrix.target}} == "x86_64" ]; then
+        echo "NOTICE=请分配不少于1G的存储容量" >> $GITHUB_ENV
         fi
-        
-    - name: 上传固件文件
-      if: env.UPLOAD_FIRMWARE == 'true'
-      uses: actions/upload-artifact@v2
-      with:
-        name: OpenWrt_firmware_${{matrix.target}}_${{ env.FILE_DATE }}
-        path: ./firmware/
-
-    - name: 上传插件包文件
-      if: env.UPLOAD_IPK == 'true'
-      uses: actions/upload-artifact@v2
-      with:
-        name: OpenWrt_package_${{matrix.target}}_${{ env.FILE_DATE }}
-        path: ./artifact/package/    
-      
-    - name: 上传固件到奶牛快传
-      if: env.UPLOAD_COWTRANSFER == 'true'
-      run: |
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer cow --block 2621440 -s -p 64 --no-progress ./firmware/ 2>&1 | tee cowtransfer.log
-        echo "::warning file=奶牛快传（${{matrix.target}}）::$(cat cowtransfer.log | grep https)"
-        
-    - name: 上传固件到 WeTransfer
-      if: env.UPLOAD_WETRANSFER == 'true'
-      run: |
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer wet -s -p 16 --no-progress ./firmware/ 2>&1 | tee wetransfer.log
-        echo "::warning file=WeTransfer（${{matrix.target}}）::$(cat wetransfer.log | grep https)"
-        
+    
     - name: 上传固件到网盘
       uses: AEnterprise/rsync-deploy@v1.0 
       if: env.UPLOAD_MYPAN == 'true'
@@ -273,16 +225,10 @@ jobs:
         DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }} 
         ARGS: -avzr --exclude=
         SERVER_PORT: ${{ secrets.SERVER_PORT }}
-        FOLDER: ./firmware/
+        FOLDER: firmware/
         SERVER_IP: ${{ secrets.SSH_HOST }} 
         USERNAME: ${{ secrets.SSH_USERNAME }} 
-        SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}${{matrix.target}}/
-   
-    - name: 进入目录删除
-      if: env.UPLOAD_PKG == 'true'
-      run: |
-         cd /home/runner/work/_temp/_github_home/
-         sudo rm -rf .ssh
+        SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}/firmware/${{matrix.target}}/
          
     - name: 上传Packages到网盘
       uses: AEnterprise/rsync-deploy@v1.0 
@@ -291,66 +237,40 @@ jobs:
         DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }} 
         ARGS: -avz --delete --exclude='*.pyc'
         SERVER_PORT: ${{ secrets.SERVER_PORT }}
-        FOLDER: ./artifact/package/
+        FOLDER: openwrt/bin/packages/*/base/*-firmware*
         SERVER_IP: ${{ secrets.SSH_HOST }} 
         USERNAME: ${{ secrets.SSH_USERNAME }} 
-        SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}Packages/
- 
-    - name: 提取发布用的「奶牛快传」和「WeTransfer」的链接
-      if: env.UPLOAD_RELEASE == 'true'
-      run: |
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer cow --block 2621440 -s -p 64 --no-progress ./firmware/ 2>&1 | tee cowtransfer.log
-        echo "COWTRANSFER_URL=$(cat cowtransfer.log | grep https | cut -f3 -d" ")" >> $GITHUB_ENV 
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer wet -s -p 16 --no-progress ./firmware/ 2>&1 | tee wetransfer.log
-        echo "WETRANSFER_URL=$(cat wetransfer.log | grep https | cut -f3 -d" ")" >> $GITHUB_ENV 
+        SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}/Packages/
+          
+    - name: Upload firmware for artifact
+      uses: actions/upload-artifact@main
+      continue-on-error: true
+      if: env.UPLOAD_FIRMWARE == 'true'
+      with:
+        name: ${{ env.VERSION }}_${{matrix.target}}
+        path: |
+          openwrt/bin/targets/      
         
-    - name: 自动发布固件到 Releases
-      uses: softprops/action-gh-release@v1
-      if: env.UPLOAD_RELEASE == 'true'
+ 
+    - name: WeChat notification
+      continue-on-error: true
+      if: env.SERVERCHAN_SCKEY == 'true'
+      run: |
+        # [ steps.compile.outputs.status == 'success' ] && curl https://sctapi.ftqq.com/${{ secrets.SCKEY }}.send?text=🎉OpenWrt_${{ env.VERSION }}_${{matrix.target}}编译完成😋|| curl https://sctapi.ftqq.com/${{ secrets.SCKEY }}.send?text=❌OpenWrt_${{ env.VERSION }}_${{matrix.target}}编译失败😂
+        
+    - name: Delete workflow runs
+      uses: GitRML/delete-workflow-runs@main
+      continue-on-error: true
+      with:
+        retain_days: 30
+        keep_minimum_runs: 0
+
+    - name: Remove old Releases
+      uses: dev-drprasad/delete-older-releases@master
+      continue-on-error: true
+      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+      with:
+        keep_latest: 15
+        delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.REPO_TOKEN }}
-      with:
-        name: ${{ env.WXFB_MESSAGE }}
-        tag_name: ${{ env.FILE_DATE2 }}-${{matrix.target}}
-        body: |            
-            ★  时间 : ${{ env.FILE_DATE1 }} 
-            ★  分支 : ${{ env.REPO_BRANCH }}
-            ★  源码 : ${{ env.REPO_URL }}            
-            高速下载地址：
-            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-            
-            
-            ➤ 奶牛快传： ${{ env.COWTRANSFER_URL }}
-            
-            ➤ WeTransfer： ${{ env.WETRANSFER_URL }}
-            
-            注:链接有效期为7天，无需注册直接下载.
-            
-            ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-            
-        files: ./firmware/*
-        
-    - name: 完成编译微信通知
-      uses: emon100/Action-Serverchan@v2
-      if: env.SERVERCHAN_SCKEY == 'true'
-      with:
-        SCKEY: ${{ secrets.WEIXIN_SCKEY }}
-        text: 恭喜${{matrix.target}}固件编译成功！
-        desp: 您的${{ env.WXFB_MESSAGE }}固件成功编译完成了！
-
-              
-              完成时间：${{ env.FILE_DATE1 }}
-              
-              
-              发布地址：${{ env.GITHUB_RELEASE }}
-              
-              
-              奶牛快传：${{ env.COWTRANSFER_URL }}
-              
-              
-              WeTransfer：${{ env.WETRANSFER_URL }}
-              
-              
-              固件已经编译完成 🎈！！！
