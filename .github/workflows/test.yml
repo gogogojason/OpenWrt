@@ -117,6 +117,7 @@ jobs:
         cp -rf devices/${{matrix.target}}/. openwrt/
         cp -rf devices openwrt/
         cd openwrt
+        find -iname "luci-app-gpsysupgrade"
         chmod +x devices/common/$DIY_SH
         /bin/bash "devices/common/$DIY_SH"
         if [ -f "devices/${{matrix.target}}/$DIY_SH" ]; then
@@ -143,7 +144,7 @@ jobs:
         fi
         
         echo "修改地址"
-        sed -i 's/https:\/\/op.supes.top/https:\/\/pan.zstk.tk/g' feeds/custom/luci-app-gpsysupgrade/luasrc/model/cbi/gpsysupgrade/sysupgrade.lua
+        sed -i 's/https:\/\/op.supes.top/https:\/\/pan.zstk.tk/g' feeds/kiddin9/luci-app-gpsysupgrade/luasrc/model/cbi/gpsysupgrade/sysupgrade.lua
 
 #    - name: feeds重新更新
 #      run: | 
