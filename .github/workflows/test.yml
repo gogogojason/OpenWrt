@@ -111,10 +111,11 @@ jobs:
         fi
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
    
-    - name: 加载配置文件
+    - name: 查看文件列表
       run: |
             cd openwrt
             find -iname "luci-app-gpsysupgrade"
+            ls -a
             
     - name: 加载配置文件
       run: |
