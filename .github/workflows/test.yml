@@ -110,7 +110,12 @@ jobs:
           git checkout ${{ env.REPO_BRANCH }}
         fi
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-        
+   
+    - name: 加载配置文件
+      run: |
+            cd openwrt
+            find -iname "luci-app-gpsysupgrade"
+            
     - name: 加载配置文件
       run: |
         cp -rf devices/common/. openwrt/
