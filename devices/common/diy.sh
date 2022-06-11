@@ -79,4 +79,4 @@ sed -i 's/系统在线更新/系统升级/g' feeds/kiddin9/luci-app-gpsysupgrade
 sed -i 's/网页管理端口/账号密码为root|管理端口/g' feeds/kiddin9/luci-app-adguardhome/po/zh_Hans/adguardhome.po
 rm -f feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
 git clone https://github.com/gogogojason/logos.git package/logos
-cp logos/milogo.png feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
+cp package/logos/milogo.png feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
