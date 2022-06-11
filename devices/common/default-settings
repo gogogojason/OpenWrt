@@ -1,108 +1,163 @@
 #!/bin/sh
 
-version=`uci get base_config.@status[0].version 2>/dev/null`
+([ -x /bin/bash ] && ! grep -q "^root.*bash" /etc/passwd) && sed -i "s/^\(root.*\/\)ash/\1bash/g" /etc/passwd
 
-. /etc/openwrt_release
-test -n "${DISTRIB_ID}" || DISTRIB_ID=OpenWrt
-DISTRIB_ID=`echo -n $DISTRIB_ID | tr a-z A-Z`
+# [[ "$(df | grep overlay)" && ! "$(df | grep /rom/overlay)" ]] && firstboot
 
-MACADDR=""
-test -e /usr/share/natcapd/board_mac.lua && MACADDR=`lua /usr/share/natcapd/board_mac.lua`
-test -n "$MACADDR" || MACADDR=`cat /etc/board.json | grep macaddr | tr a-f A-F | grep -o "[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]:[0-9A-F][0-9A-F]" | head -n1`
-test -n "$MACADDR" || MACADDR=`cat /sys/class/net/eth0/address | tr a-z A-Z`
-test -n "$MACADDR" || MACADDR=`cat /sys/class/net/eth1/address | tr a-z A-Z`
-test -n "$MACADDR" || MACADDR=`head -c6 /dev/urandom | hexdump -e '/1 "%02X:"' | head -c17`
-test -n "$MACADDR" || MACADDR=`head -c6 /dev/random | hexdump -e '/1 "%02X:"' | head -c17`
+version=`uci -q get base_config.@status[0].version`
+
+hostname=`uci -q get system.@system[0].hostname`
+test -n "${hostname}" || hostname="OpenWrt"
+
+if [ "$(uci -q get dhcp.@dnsmasq[0].port)" != "53" ]; then
+	uci -q set dhcp.@dnsmasq[0].port='53'
+	uci commit dhcp
+fi
+
+uci -q batch <<EOF
+set attendedsysupgrade.server.url='https://op.supes.top'
+commit attendedsysupgrade
+EOF
+
+uci set dockerd.firewall.extra_iptables_args='--match conntrack ! --ctstate RELATED,ESTABLISHED'
+uci commit dockerd
 
 sed -i '/profile.d/d' /lib/upgrade/keep.d/base-files
 
-sed -i '/openwrt_custom/d' /etc/opkg/distfeeds.conf
-sed -i 's/downloads.openwrt.org/op.supes.top/g' /etc/opkg/distfeeds.conf
-
-echo $(uci get uhttpd.main.index_page) | grep -q "cgi-bin/luci" ||
+echo $(uci -q get uhttpd.main.index_page) | grep -q "cgi-bin/luci" ||
 	uci -q add_list uhttpd.main.index_page='cgi-bin/luci' && uci commit uhttpd
+
+grep -q "return 301" /etc/nginx/conf.d/luci.locations || {
+echo '
+location ~* ^/cgi-bin/(.*) {
+		return 307 $scheme://$http_host/$1$is_args$args;
+}
+location = / {
+		return 301 $scheme://$http_host/luci/;
+}
+' >>/etc/nginx/conf.d/luci.locations
+}
+[ -f /etc/dnsmasq.d ] || sed -i "/\/etc\/dnsmasq.d/d" /etc/dnsmasq.conf
+
+/etc/init.d/wizard disable
 
 [ -f /usr/bin/wget ] && 	
 	ln -s /usr/bin/wget /usr/bin/wget-ssl
 
 sed -i "s/git-.*-\(.*\)/git-\1/g" /usr/lib/lua/luci/version.lua
 
-ln -s /sbin/poweroff /sbin/shutdown
+[[ "$(echo "$(/sbin/cpuinfo 2>/dev/null)" | grep -i "MHz")" ]] || sed -i "s/_('CPU Info'),cpuinfo.cpufreq,//" /www/luci-static/resources/view/status/include/10_system.js
 
-sed -i '/S99opkg/d' /etc/crontabs/root
-echo "0 4 * * * sh /etc/rc.d/S99opkg >/tmp/opkgupdate.log 2>&1" >> /etc/crontabs/root
-
+processor=`cat /proc/cpuinfo | grep 'processor' | wc -l`
+test -n "$processor" || processor=3
+sed -i "/^threads =/c\threads = $processor" /etc/uwsgi/vassals/luci-webui.ini
 test $version -lt 1 && {
-	uci set luci.main.lang='auto'
-	uci set luci.main.mediaurlbase=/luci-static/edge
+	uci -q set luci.main.lang='auto'
+	uci -q set luci.main.mediaurlbase=/luci-static/edge
 	uci commit luci
-
-	uci get system.@system[0] >/dev/null 2>&1 && {
-		uci set system.@system[0].hostname="${DISTRIB_ID}"
-		uci set system.@system[0].zonename='Asia/Shanghai'
-		uci set system.@system[0].timezone='CST-8'
-		uci del system.ntp.server
-		uci add_list system.ntp.server='ntp.aliyun.com'
-		uci add_list system.ntp.server='0.openwrt.pool.ntp.org'
-		uci set system.@system[0].autoupgrade_pkg='1'
-		uci set system.@system[0].autoupgrade_fm='1'
+	
+	uci -q set dropbear.@dropbear[0].Interface='lan'
+	uci commit dropbear
+	
+	uci -q get system.@system[0] >/dev/null 2>&1 && {
+		uci -q set system.@system[0].zonename='Asia/Shanghai'
+		uci -q set system.@system[0].timezone='CST-8'
+		uci -q del system.ntp.server
+		uci -q add_list system.ntp.server='ntp.aliyun.com'
+		uci -q add_list system.ntp.server='0.openwrt.pool.ntp.org'
 		uci commit system
 	}
 
-	uci set uhttpd.main.rfc1918_filter=0
-	uci set uhttpd.main.redirect_https=0
+	uci -q set uhttpd.main.rfc1918_filter=0
+	uci -q set uhttpd.main.redirect_https=0
+	uci -q set uhttpd.main.script_timeout='120'
 	uci commit uhttpd
-
-	SUBFIX=`echo -n $MACADDR | sed 's/://g' | tr a-z A-Z | tail -c4`
-	SSID=${DISTRIB_ID}_${SUBFIX}
-	SSID_PASSWD=88888888
-
-	uci set base_config.@status[0].SSID=${SSID}
-	# uci set base_config.@status[0].SSID_PASSWD=${SSID_PASSWD}
 	
-	uci set upnpd.config.enabled='1'
+	(echo "password"; sleep 1; echo "password") | /bin/busybox passwd root >/dev/null 2>&1 &
+	
+	wifi_setup_radio(){
+	local radio=$1
+	htmode="$(uci get wireless.${radio}.htmode)"
+	local widx=0
+	while uci rename wireless.@wifi-iface[$widx]=default_radio$widx >/dev/null 2>&1; do widx=$((widx+1)); done
+	uci -q get wireless.${radio} >/dev/null 2>&1 && {
+			uci -q del wireless.${radio}.disabled
+			uci -q set wireless.${radio}.country='US'
+			uci -q set wireless.${radio}.channel='auto'
+		
+		if [ "$(uci -q get wireless.${radio}.band)" = "5g" ]; then
+			uci -q set wireless.default_${radio}.ssid="${SSID}_5G"
+			if test -z "${htmode##HE*}"; then
+				if [[ $htmode == "HE20" || $htmode == "HE40" ]]; then
+					uci -q set wireless.${radio}.htmode="HE80"
+				fi
+			else
+				uci -q set wireless.${radio}.htmode="VHT80"
+			fi
+		else
+			uci -q set wireless.${radio}.htmode="HT40"
+			uci -q set wireless.${radio}.noscan='1'
+			uci -q set wireless.${radio}.vendor_vht='1'
+			uci -q set wireless.default_${radio}.ssid="${SSID}_2.4G"
+		fi
+			uci -q set wireless.default_${radio}.device="${radio}"
+			if [ "${SSID_PASSWD}" ]; then
+				uci -q set wireless.default_${radio}.encryption='psk2'
+				uci -q set wireless.default_${radio}.key="${SSID_PASSWD}"
+			else
+				uci -q set wireless.default_${radio}.encryption='none'
+			fi
+		}
+	}
+
+	[ -f /etc/config/wireless ] && {
+		SSID=${hostname}
+		SSID_PASSWD=""
+		for radio in radio0 radio1 radio2 radio3; do
+			wifi_setup_radio ${radio}
+		done
+		uci commit wireless
+	}
+
+	uci -q set upnpd.config.enabled='1'
 	uci commit upnpd
 	
 	grep -q log-facility /etc/dnsmasq.conf ||
 		echo "log-facility=/dev/null" >> /etc/dnsmasq.conf
 
-	grep -q /etc/dnsmasq.d /etc/dnsmasq.conf ||
-		echo "conf-dir=/etc/dnsmasq.d" >> /etc/dnsmasq.conf
+	[ -f /sys/module/xt_FULLCONENAT/refcnt ] && {
+	uci -q set firewall.@defaults[0].fullcone='1'
+	uci commit firewall
+	}
 
-	uci set turboacc.config.sfe_ipv6='1'
-	uci commit turboacc
-
-	uci set fstab.@global[0].anon_mount=1
+	uci -q set fstab.@global[0].anon_mount=1
 	uci commit fstab
  
- 	test ! -f /etc/config/placeholder && {
-	sed -i 's/root:.*/root:$1$V4UetPzk$CYXluq4wUazHjmCDBCqXF.:0:0:99999:7:::/g' /etc/shadow
-	uci set network.lan.ipaddr="192.168.2.1"
-chmod 755 /sbin/ethinfo
-chmod 755 /sbin/reboot
-	uci set network.@globals[0].packet_steering=1
+	uci -q set network.@globals[0].packet_steering=1
 	uci commit network
-	}
   
-	uci set dhcp.@dnsmasq[0].dns_redirect='1'
-	uci set dhcp.dnsmasq[0].allservers='1'
-	uci set dhcp.lan.force='1'
-	uci set dhcp.@dnsmasq[0].cachesize='1500'
-	uci set dhcp.lan.ra='hybrid'
-	uci set dhcp.lan.ndp='hybrid'
-	uci set dhcp.lan.dhcpv6='hybrid'
-	uci set dhcp.lan.force='1'
+	uci -q set dhcp.@dnsmasq[0].dns_redirect='1'
+	uci -q set dhcp.@dnsmasq[0].allservers='1'
+	uci -q del dhcp.@dnsmasq[0].noresolv
+	uci -q set dhcp.@dnsmasq[0].cachesize='1500'
+	uci -q set dhcp.@dnsmasq[0].min_ttl='3600'
+	uci -q set dhcp.lan.force='1'
+	uci -q set dhcp.lan.ra='hybrid'
+	uci -q set dhcp.lan.ndp='hybrid'
+	uci -q set dhcp.lan.dhcpv6='hybrid'
+	uci -q set dhcp.lan.force='1'
 	uci commit dhcp
 
-	uci set nft-qos.default.limit_enable='0'
+	uci -q set nft-qos.default.limit_enable='0'
 	uci commit nft-qos
+
+	uci -q set system.@system[0].conloglevel='4'
+	uci -q set system.@system[0].cronloglevel='8'
+	uci commit system
 }
 
 # kB
 memtotal=`grep MemTotal /proc/meminfo | awk '{print $2}'`
-cachesize=2048
-dnsforwardmax=2048
-nf_conntrack_max=16384
 if test $memtotal -ge 1048576; then
 	# > 1024M
 	cachesize=10000
@@ -136,30 +191,36 @@ else
 fi
 
 test $version -lt 1 && {
-	uci -q get dhcp.@dnsmasq[0] || uci add dhcp dnsmasq
-	uci set dhcp.@dnsmasq[0].cachesize="$cachesize"
-	uci set dhcp.@dnsmasq[0].dnsforwardmax="$dnsforwardmax"
-	uci set dhcp.@dnsmasq[0].localservice='0'
-	uci set dhcp.@dnsmasq[0].localise_queries='1'
-	uci set dhcp.@dnsmasq[0].rebind_protection='0'
-	uci set dhcp.@dnsmasq[0].rebind_localhost='1'
+	uci -q get dhcp.@dnsmasq[0] || uci -q add dhcp dnsmasq
+	uci -q set dhcp.@dnsmasq[0].cachesize="$cachesize"
+	uci -q set dhcp.@dnsmasq[0].dnsforwardmax="$dnsforwardmax"
+	uci -q set dhcp.@dnsmasq[0].localservice='0'
+	uci -q set dhcp.@dnsmasq[0].localise_queries='1'
+	uci -q set dhcp.@dnsmasq[0].rebind_protection='0'
+	uci -q set dhcp.@dnsmasq[0].rebind_localhost='1'
 	uci commit dhcp
+	uci -q set system.@system[0].zram_comp_algo='zstd'
+	uci -q set system.@system[0].zram_size_mb="$(expr $memtotal / 1024 / 3)"
+	uci commit system
+	
+	# sysctl overwrite
+	SYSCTL_LOCAL=/etc/sysctl.d/50-local.conf
+	mkdir -p /etc/sysctl.d
+	echo -n >$SYSCTL_LOCAL
+	echo net.nf_conntrack_max=$nf_conntrack_max >>$SYSCTL_LOCAL
+	echo net.ipv4.ip_early_demux=0 >>$SYSCTL_LOCAL
+	echo net.bridge.bridge-nf-call-iptables=0 >>$SYSCTL_LOCAL
+	echo net.ipv4.fib_multipath_hash_policy=1 >>$SYSCTL_LOCAL
+	echo net.ipv4.tcp_congestion_control=cubic >>$SYSCTL_LOCAL
+	echo net.netfilter.nf_conntrack_helper=1 >>$SYSCTL_LOCAL
+	echo kernel.msgmax = 65536 >>$SYSCTL_LOCAL
+	echo kernel.msgmnb = 65536 >>$SYSCTL_LOCAL
+	echo vm.swappiness=0 >>$SYSCTL_LOCAL
 	version=1
 }
 
-# sysctl overwrite
-SYSCTL_LOCAL=/etc/sysctl.d/50-local.conf
-mkdir -p /etc/sysctl.d
-echo -n >$SYSCTL_LOCAL
-
-echo net.nf_conntrack_max=$nf_conntrack_max >>$SYSCTL_LOCAL
-echo net.ipv4.ip_early_demux=0 >>$SYSCTL_LOCAL
-echo net.bridge.bridge-nf-call-iptables=0 >>$SYSCTL_LOCAL
-echo net.ipv4.fib_multipath_hash_policy=1 >>$SYSCTL_LOCAL
-echo net.ipv4.tcp_congestion_control=cubic >>$SYSCTL_LOCAL
-echo net.netfilter.nf_conntrack_helper=1 >>$SYSCTL_LOCAL
-echo kernel.msgmax = 65536 >>$SYSCTL_LOCAL
-echo kernel.msgmnb = 65536 >>$SYSCTL_LOCAL
-echo vm.swappiness=0 >>$SYSCTL_LOCAL
-
+cp -pR /www/cgi-bin/* /www/
 rm -rf /tmp/luci-*
+
+uci -q set base_config.@status[0].version=$version
+uci commit base_config
