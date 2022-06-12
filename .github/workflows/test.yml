@@ -123,9 +123,10 @@ jobs:
         cp -rf devices/${{matrix.target}}/. openwrt/
         cp -rf devices openwrt/
         cd openwrt
-        find -iname "luci-app-gpsysupgrade"
         chmod +x devices/common/$DIY_SH
+        chmod +x devices/common/$DIY_SH2
         /bin/bash "devices/common/$DIY_SH"
+        /bin/bash "devices/common/$DIY_SH2"
         if [ -f "devices/${{matrix.target}}/$DIY_SH" ]; then
           chmod +x devices/${{matrix.target}}/$DIY_SH
           /bin/bash "devices/${{matrix.target}}/$DIY_SH"
