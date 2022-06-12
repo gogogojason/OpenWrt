@@ -6,7 +6,7 @@
 # Blog: https://p3terx.com
 #=================================================
 
-name: 19.07OpenWrtnew
+name: OpenWrtBuild
 
 on:
   workflow_dispatch:
@@ -225,7 +225,6 @@ jobs:
         echo "NOTICE=请分配不少于1G的存储容量" >> $GITHUB_ENV
         fi
     
-    
     - name: Deploy firmware to server
       uses: easingthemes/ssh-deploy@main
       if: env.UPLOAD_MYPAN == 'true'
@@ -237,31 +236,19 @@ jobs:
         REMOTE_HOST: ${{ secrets.SSH_HOST }}
         REMOTE_USER: ${{ secrets.SSH_USERNAME }} 
         TARGET: ${{ secrets.SERVER_DESTINATION }}/firmware/${{matrix.target}}/
-    
-    
-    - name: 上传固件到网盘
-      uses: AEnterprise/rsync-deploy@v1.0 
-      if: env.UPLOAD_MYPAN == 'true'
-      env:
-        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }} 
-        ARGS: -avzr --exclude=
-        REMOTE_PORT: ${{ secrets.SERVER_PORT }}
-        FOLDER: firmware/
-        SERVER_IP: ${{ secrets.SSH_HOST }} 
-        USERNAME: ${{ secrets.SSH_USERNAME }} 
-        SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}/firmware/${{matrix.target}}/
-         
-    - name: 上传Packages到网盘
-      uses: AEnterprise/rsync-deploy@v1.0 
+        
+    - name: Deploy packages to server
+      uses: easingthemes/ssh-deploy@main
       if: env.UPLOAD_PKG == 'true'
-      env:
-        DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }} 
-        ARGS: -avz --delete --exclude='*.pyc'
-        SERVER_PORT: ${{ secrets.SERVER_PORT }}
-        FOLDER: openwrt/bin/packages/*/base/*-firmware*
-        SERVER_IP: ${{ secrets.SSH_HOST }} 
-        USERNAME: ${{ secrets.SSH_USERNAME }} 
-        SERVER_DESTINATION: ${{ secrets.SERVER_DESTINATION }}/Packages/
+      with:
+        SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_KEY }}
+        ARGS: "-avz --delete --exclude='*.pyc'"
+        REMOTE_PORT: ${{ secrets.SERVER_PORT }}
+        SOURCE: openwrt/bin/packages/*/base/*-firmware*
+        REMOTE_HOST: ${{ secrets.SSH_HOST }}
+        REMOTE_USER: ${{ secrets.SSH_USERNAME }} 
+        TARGET: ${{ secrets.SERVER_DESTINATION }}/Packages/
+               
           
     - name: Upload firmware for artifact
       uses: actions/upload-artifact@main
