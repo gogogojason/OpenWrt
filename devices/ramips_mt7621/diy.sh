@@ -9,3 +9,5 @@ svn export --force https://github.com/x-wrt/x-wrt/trunk/target/linux/ramips/file
 sed -i 's/DEFAULT_PACKAGES +=/DEFAULT_PACKAGES += luci-app-natflow-users natflow-boot/' target/linux/ramips/Makefile
 
 rm -rf target/linux/generic/pending-5.10/444-mtd-nand-rawnand-add-support-for-Toshiba-TC58NVG0S3H.patch
+
+rm -f feeds/kiddin9/ntfs3-oot
