@@ -225,13 +225,27 @@ jobs:
         echo "NOTICE=请分配不少于1G的存储容量" >> $GITHUB_ENV
         fi
     
+    
+    - name: Deploy firmware to server
+      uses: easingthemes/ssh-deploy@main
+      if: env.UPLOAD_MYPAN == 'true'
+      with:
+        SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_KEY }}
+        ARGS: "-avzr --exclude="
+        REMOTE_PORT: ${{ secrets.SERVER_PORT }}
+        SOURCE: firmware/
+        REMOTE_HOST: ${{ secrets.SSH_HOST }}
+        REMOTE_USER: ${{ secrets.SSH_USERNAME }} 
+        TARGET: ${{ secrets.SERVER_DESTINATION }}/firmware/${{matrix.target}}/
+    
+    
     - name: 上传固件到网盘
       uses: AEnterprise/rsync-deploy@v1.0 
       if: env.UPLOAD_MYPAN == 'true'
       env:
         DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }} 
         ARGS: -avzr --exclude=
-        SERVER_PORT: ${{ secrets.SERVER_PORT }}
+        REMOTE_PORT: ${{ secrets.SERVER_PORT }}
         FOLDER: firmware/
         SERVER_IP: ${{ secrets.SSH_HOST }} 
         USERNAME: ${{ secrets.SSH_USERNAME }} 
