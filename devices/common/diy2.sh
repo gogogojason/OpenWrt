@@ -8,8 +8,7 @@ sed -i 's/https:\/\/op.supes.top/https:\/\/pan.zstk.tk/g' feeds/kiddin9/luci-app
 sed -i 's/系统在线更新/系统升级/g' feeds/kiddin9/luci-app-gpsysupgrade/po/zh_Hans/gpsysupgrade.po
 sed -i 's/网页管理端口/账号密码为root|管理端口/g' feeds/kiddin9/luci-app-adguardhome/po/zh_Hans/adguardhome.po
 sed -i 's/+luci-theme-bootstrap/+luci-theme-edge/g' feeds/luci/collections/luci/Makefile
-sed -i "s/bootstrap/argon/g" feeds/luci/modules/luci-base/root/etc/config/luci
-sed -i '/set luci.main.mediaurlbase=\/luci-static\/bootstrap/d' feeds/luci/themes/luci-theme-bootstrap/root/etc/uci-defaults/30_luci-theme-bootstrap
+sed -i "s/bootstrap/edge/g" feeds/luci/modules/luci-base/root/etc/config/luci
 rm -f feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
 rm -rf feeds/kiddin9/luci-app-attendedsysupgrade
 rm -rf feeds/kiddin9/ntfs3-oot
