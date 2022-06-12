@@ -12,7 +12,6 @@ sed -i "s/bootstrap/edge/g" feeds/luci/modules/luci-base/root/etc/config/luci
 rm -f feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
 rm -f package/base-files/files/etc/banner
 rm -rf feeds/kiddin9/luci-app-attendedsysupgrade
-rm -rf feeds/kiddin9/ntfs3-oot
 git clone https://github.com/gogogojason/logos.git package/logos
 cp package/logos/milogo.png feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
 cp package/logos/banner package/base-files/files/etc/banner
