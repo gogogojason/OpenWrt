@@ -34,11 +34,11 @@ jobs:
   build:
     runs-on: Ubuntu-20.04
     
-    name: Build ${{matrix.target}}
+    name: 编译 ${{matrix.target}}
     strategy:
       fail-fast: false
       matrix:
-        target: ["${{ github.event.client_payload.target }}"]
+        target: [ramips_mt7621,ipq807x]  #[x86_64,All_RM2100,Sim_RM2100,Ap_RM2100,Mi2100，Test]
         
     steps:
     - name: 准备完成
@@ -114,7 +114,6 @@ jobs:
     - name: 查看文件列表
       run: |
             cd openwrt
-            find -iname "luci-app-gpsysupgrade"
             ls -a
             
     - name: 加载配置文件
