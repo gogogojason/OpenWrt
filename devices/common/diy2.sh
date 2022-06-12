@@ -8,5 +8,7 @@ sed -i 's/https:\/\/op.supes.top/https:\/\/pan.zstk.tk/g' feeds/kiddin9/luci-app
 sed -i 's/系统在线更新/系统升级/g' feeds/kiddin9/luci-app-gpsysupgrade/po/zh_Hans/gpsysupgrade.po
 sed -i 's/网页管理端口/账号密码为root|管理端口/g' feeds/kiddin9/luci-app-adguardhome/po/zh_Hans/adguardhome.po
 rm -f feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
+rm -rf feeds/kiddin9/luci-app-attendedsysupgrade
+rm -rf feeds/kiddin9/ntfs3-oot
 git clone https://github.com/gogogojason/logos.git package/logos
 cp package/logos/milogo.png feeds/kiddin9/luci-theme-edge/htdocs/luci-static/edge/logo.png
