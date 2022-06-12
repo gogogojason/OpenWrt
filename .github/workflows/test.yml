@@ -153,10 +153,9 @@ jobs:
         echo "修改地址"
         sed -i 's/https:\/\/op.supes.top/https:\/\/pan.zstk.tk/g' feeds/kiddin9/luci-app-gpsysupgrade/luasrc/model/cbi/gpsysupgrade/sysupgrade.lua
 
-#    - name: feeds重新更新
-#      run: | 
-#        cd openwrt
-#        ./scripts/feeds update -a
+    - name: SSH connection to Actions
+      uses: kiddin9/debugger-action@master
+      if: github.event.inputs.ssh == 'true'
 
     - name: Defconfig
       run: |
